@@ -9,7 +9,7 @@ s.waitForBoot({
 	{SendReply.kr(Impulse.kr(4), '/reply', MouseY.kr(),-1)}.play;
 
 	//sample (must be in the same directory as this patch)
-	~b = Buffer.read(s, thisProcess.nowExecutingPath.dirname +/+ "6.wav");
+	~b = Buffer.read(s, thisProcess.nowExecutingPath.dirname +/+ "7.wav");
 	//original frequency of sample
 	~origFreq = 1760;
 
