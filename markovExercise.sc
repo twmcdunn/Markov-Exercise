@@ -1,227 +1,245 @@
 //set this to match the sample rate of your speakers
+//if you get a message about mismatch audio rate, you'll need
+//to adjust your audio settings on the computer, then reboot the
+//supercollider audio server
 s.options.sampleRate = 44100;
+
+//On windows, you will probably need to replace line 17 with
+//the line below, so the program can find the directory of the
+//sound sample it uses:
+~dir = thisProcess.nowExecutingPath.dirname +\+ "7.wav";
 
 //run this block to initialize things (the orchestra)
 (
 s.reboot;
 s.waitForBoot({
-	//starts sending mouseY values to the client machine
-	{SendReply.kr(Impulse.kr(4), '/reply', MouseY.kr(),-1)}.play;
+	fork{
+		~dir = thisProcess.nowExecutingPath.dirname +/+ "7.wav";
+		//starts sending mouseY values to the client machine
+		{SendReply.kr(Impulse.kr(4), '/reply', MouseY.kr(),-1)}.play;
 
-	//sample (must be in the same directory as this patch)
-	~b = Buffer.read(s, thisProcess.nowExecutingPath.dirname +/+ "7.wav");
-	//original frequency of sample
-	~origFreq = 1760;
+		//sample (must be in the same directory as this patch)
+		~b = Buffer.read(s, ~dir);
+		//original frequency of sample
+		~origFreq = 1760;
+		"LOADING SOUND SAMPLE".postln;
+		1.wait;//allows time for buffer to finish loading (just in case)
 
-	/*
-	* in each stratum: 0 - mouse does note control dynamics
-	* 1 - mouse does control dynamics
-	*/
-	~mouseDynamics = [0,0,0,0,0,0];
+		/*
+		* in each stratum: 0 - mouse does note control dynamics
+		* 1 - mouse does control dynamics
+		*/
+		~mouseDynamics = [0,0,0,0,0,0];
 
-	/*
-	* in each stratum default amp if not controled by mouse
-	*/
-	~amp = [0.5,0.5,0.5,0.5,0.5,0.5];
-	~curAmp = [0.5,0.5,0.5,0.5,0.5,0.5];//used to create lag (gradual dynamic change)
-
-	//don't worry about the synths
-	SynthDef(\ln, {
-		arg out;
-		Out.kr(out, LFNoise2.ar(1 / 3.0));
-	}).add;
-
-	SynthDef(\sampleSynth, {
-		arg freq, voice = 0, amp, mouseDynamics;
-		var sig;
-		amp = 0.25 * SelectX.kr(mouseDynamics, [amp, MouseX.kr()]);//no varlag
-		sig = amp * PlayBuf.ar(1,~b,BufRateScale.kr(~b) * freq / ~origFreq, doneAction: Done.freeSelf);
-		sig = BLowPass4.ar(sig,20000 * (In.kr(6 + (1 + voice) % 6) + 1) / 2);
-		Out.ar(4,Pan2.ar(sig, In.kr(6 + voice)));
-	}).add;
-
-	SynthDef(\rev, {
-		//arg mix = 0.5, room = 0.7, damp = 0.5;
-		var sig;
-		sig = In.ar(4,2);
-		sig = FreeVerb2.ar(sig[0],sig[1],\mix.kr(0.5,2),\room.kr(0.7,2),\damp.kr(0.5,2));
-		Out.ar(0,sig);
-	}).add;
-
-	SynthDef(\filter, {
-		var sig;
-		sig = In.ar(4,2);
-		sig = BLowPass4.ar(sig, 0 + 20000 * (LFNoise2.kr(1 / 3.0) + 1) / 2);
-		Out.ar(0,sig);
-	}).add;
+		/*
+		* in each stratum default amp if not controled by mouse
+		*/
+		~amp = [0.5,0.5,0.5,0.5,0.5,0.5];
+		~curAmp = [0.5,0.5,0.5,0.5,0.5,0.5];//used to create lag (gradual dynamic change)
 
 
-	/*C Major scale in numbers (c = 0).
-	* Includes top note.
-	*/
-	~scale = [0,2,4,5,7,9,11,12];
 
-	/*Transition Probabilities Matrix
-	It's 8 x 8 because there are 8 notes in the scale.
-	Each column represents the starting note (in order from low to high).
-	Each row represents the potential next note.
-	The numbers in the matrix represent the probabilities that an given
-	transition will occur.
-	It makes the most sense if the numbers in a given row add up to 1,
-	but I normalize the numbers later just in case; if they don't add up to one,
-	it won't break anything.
-	*/
-	~transMatrix = [
-		[0.0, 0.1, 0.2, 0.1, 0.3, 0.1, 0.1, 0.1],
-		[0.3, 0.0, 0.3, 0.1, 0.1, 0.1, 0.1, 0.0],
-		[0.3, 0.1, 0.0, 0.1, 0.2, 0.1, 0.1, 0.1],
-		[0.1, 0.0, 0.5, 0.0, 0.1, 0.2, 0.0, 0.1],
-		[0.3, 0.1, 0.2, 0.1, 0.0, 0.1, 0.1, 0.2],
-		[0.2, 0.0, 0.2, 0.2, 0.1, 0.0, 0.1, 0.2],
-		[0.0, 0.2, 0.0, 0.0, 0.2, 0.1, 0.0, 0.5],
-		[0.1, 0.1, 0.2, 0.1, 0.3, 0.1, 0.1, 0.0],
-	];
+		//don't worry about the synths
+		SynthDef(\ln, {
+			arg out;
+			Out.kr(out, LFNoise2.ar(1 / 3.0));
+		}).add;
 
-	//normalize the matrix (make each row add up to 1
-	~transMatrix.do({arg row, i;
-		var sum = 0;
-		row.do({arg prob;
-			sum = prob + sum;
+		SynthDef(\sampleSynth, {
+			arg freq, voice = 0, amp, mouseDynamics;
+			var sig;
+			amp = 0.25 * SelectX.kr(mouseDynamics, [amp, MouseX.kr()]);//no varlag
+			sig = amp * PlayBuf.ar(1,~b,BufRateScale.kr(~b) * freq / ~origFreq, doneAction: Done.freeSelf);
+			sig = BLowPass4.ar(sig,20000 * (In.kr(6 + (1 + voice) % 6) + 1) / 2);
+			Out.ar(4,Pan2.ar(sig, In.kr(6 + voice)));
+		}).add;
+
+		SynthDef(\rev, {
+			//arg mix = 0.5, room = 0.7, damp = 0.5;
+			var sig;
+			sig = In.ar(4,2);
+			sig = FreeVerb2.ar(sig[0],sig[1],\mix.kr(0.5,2),\room.kr(0.7,2),\damp.kr(0.5,2));
+			Out.ar(0,sig);
+		}).add;
+
+		SynthDef(\filter, {
+			var sig;
+			sig = In.ar(4,2);
+			sig = BLowPass4.ar(sig, 0 + 20000 * (LFNoise2.kr(1 / 3.0) + 1) / 2);
+			Out.ar(0,sig);
+		}).add;
+
+		"LOADING SYNTHS".postln;
+		1.wait;//allows time for synths to finish loading (just in case)
+
+		/*C Major scale in numbers (c = 0).
+		* Includes top note.
+		*/
+		~scale = [0,2,4,5,7,9,11,12];
+
+		/*Transition Probabilities Matrix
+		It's 8 x 8 because there are 8 notes in the scale.
+		Each column represents the starting note (in order from low to high).
+		Each row represents the potential next note.
+		The numbers in the matrix represent the probabilities that an given
+		transition will occur.
+		It makes the most sense if the numbers in a given row add up to 1,
+		but I normalize the numbers later just in case; if they don't add up to one,
+		it won't break anything.
+		*/
+		~transMatrix = [
+			[0.0, 0.1, 0.2, 0.1, 0.3, 0.1, 0.1, 0.1],
+			[0.3, 0.0, 0.3, 0.1, 0.1, 0.1, 0.1, 0.0],
+			[0.3, 0.1, 0.0, 0.1, 0.2, 0.1, 0.1, 0.1],
+			[0.1, 0.0, 0.5, 0.0, 0.1, 0.2, 0.0, 0.1],
+			[0.3, 0.1, 0.2, 0.1, 0.0, 0.1, 0.1, 0.2],
+			[0.2, 0.0, 0.2, 0.2, 0.1, 0.0, 0.1, 0.2],
+			[0.0, 0.2, 0.0, 0.0, 0.2, 0.1, 0.0, 0.5],
+			[0.1, 0.1, 0.2, 0.1, 0.3, 0.1, 0.1, 0.0],
+		];
+
+		//normalize the matrix (make each row add up to 1
+		~transMatrix.do({arg row, i;
+			var sum = 0;
+			row.do({arg prob;
+				sum = prob + sum;
+			});
+			row.do({arg prob, n;
+				row[n] = prob / sum;
+			});
 		});
-		row.do({arg prob, n;
-			row[n] = prob / sum;
+
+		//gets a scale degree based on previous scale degree
+		//using transitional prob. matrix
+		~getNextNote = {
+			arg note;
+			var rnd = 1.0.rand, tot = 0, newNote;
+			i = 0;
+			while({tot <= rnd},{
+				tot = tot + ~transMatrix[note][i];
+				newNote = i;
+				i = i + 1;
+			});
+			newNote;
+		};
+
+		/*which note of the scale each
+		* stratum starts on
+		*/
+		~noteIndexes = [0,4,2,0,4,2];
+
+		TempoClock.tempo = 1.0; //1 beat PER SECOND (i.e. quarter = 60
+
+		~rhyth = [
+			//rhythmic values used at rate zero (duration in beats)
+			[0.1, 0.4/3.0, 0.16, 0.2],
+			//rhythmic values used at rate 1 (duration in beats)
+			[0.2, 0.3, 0.4],
+			//rhythmic values used at rate 2 (duration in beats)
+			[2 / 3.0, 0.8, 1]];
+
+		//rate of each voice
+		~stratumRate = [0,0,0,0,0,0];
+
+		//an array that will hold the music streams
+		~streams = [nil,nil,nil,nil,nil,nil];
+
+		//Assigned values later
+		~mouseY = 0;
+		~mouseControlsHighestNote = false;
+		~mouseControlsLowestNote = false;
+		~targetHighest = 96;
+		~highestNote = 96;
+		~targetLowest = 24;
+		~lowestNote = 24;
+		~mouseControlsRhythm = false;
+
+		6.do({arg v;
+			x = Synth.new(\ln,[\out,v+6]);
+			//v.postln;
+			~streams[v] = Pbind(
+				\instrument, \sampleSynth,
+				\freq, FuncStream({
+					var voice = v, midi;
+					~noteIndexes[voice] = ~getNextNote.value(~noteIndexes[voice]);
+					midi = (~scale[~noteIndexes[voice]] + 24 + (voice * 12));
+
+					~mouseControlsHighestNote.if({
+						~targetHighest = ~mouseY * 72 + 24;
+					},{
+						~targetHighest = 96;
+					});
+
+					~mouseControlsLowestNote.if({
+						~targetLowest = ~mouseY * 72 + 24;
+					},{
+						~targetLowest = 24;
+					});
+
+					(~highestNote > ~targetHighest).if({
+						~highestNote = ~highestNote - 1});
+					(~highestNote < ~targetHighest).if({
+						~highestNote = ~highestNote + 1});
+					(~lowestNote > ~targetLowest).if({
+						~lowestNote = ~lowestNote - 1});
+					(~lowestNote < ~targetLowest).if({
+						~lowestNote = ~lowestNote + 1});
+
+					while({midi > ~highestNote}, {
+						midi = midi - 12;
+					});
+					while({midi < ~lowestNote}, {
+						midi = midi + 12;
+					});
+					midi.midicps * 4.0;
+				};),
+				\dur, FuncStream({
+					var val = ~rhyth[~stratumRate[v]].choose;
+					~mouseControlsRhythm.if({
+						var prob = [1 - (~mouseY - 0).abs, 1 - (~mouseY - 0.5).abs, 1 - (~mouseY - 1).abs], sum = 0, rnd = 1.0.rand, n = 0;
+						prob.do({arg item, i;
+							sum = sum + item;
+						});
+						prob.do({arg item, i;
+							prob[i] = item / sum;
+						});
+						sum = 0;
+						while({sum < rnd},
+							{
+								sum = sum + prob[n];
+								n = n + 1;
+						});
+						//prob.postln;
+						val = ~rhyth[~stratumRate[v]][n-1];
+						//val.postln;
+					});
+					val;
+				}),
+				\voice, v,
+				\amp, FuncStream({
+					(~curAmp[v] > ~amp[v]).if(
+						{~curAmp[v] = ~curAmp[v] * 0.8;},
+						{~curAmp[v] = ~curAmp[v] * 1.3;});
+					~curAmp[v];
+				}),
+				\mouseDynamics, FuncStream({~mouseDynamics[v]}),
+				\addAction, 3,
+				\group, x
+			).play(quant: 1);
+			~streams[v].stop;
 		});
-	});
+		r = Synth.tail(s, \rev);
+		x = 3;
 
-	//gets a scale degree based on previous scale degree
-	//using transitional prob. matrix
-	~getNextNote = {
-		arg note;
-		var rnd = 1.0.rand, tot = 0, newNote;
-		i = 0;
-		while({tot <= rnd},{
-			tot = tot + ~transMatrix[note][i];
-			newNote = i;
-			i = i + 1;
-		});
-		newNote;
-	};
+		//Receives MouseY messages from the server
+		y.free;
+		y = OSCFunc.newMatching({ arg msg;
+			~mouseY = msg[3];
+		}, '/reply');
 
-	/*which note of the scale each
-	* stratum starts on
-	*/
-	~noteIndexes = [0,4,2,0,4,2];
-
-	TempoClock.tempo = 1.0; //1 beat PER SECOND (i.e. quarter = 60
-
-	~rhyth = [
-		//rhythmic values used at rate zero (duration in beats)
-		[0.1, 0.4/3.0, 0.16, 0.2],
-		//rhythmic values used at rate 1 (duration in beats)
-		[0.2, 0.3, 0.4],
-		//rhythmic values used at rate 2 (duration in beats)
-		[2 / 3.0, 0.8, 1]];
-
-	//rate of each voice
-	~stratumRate = [0,0,0,0,0,0];
-
-	//an array that will hold the music streams
-	~streams = [nil,nil,nil,nil,nil,nil];
-
-	//Assigned values later
-	~mouseY = 0;
-	~mouseControlsHighestNote = false;
-	~mouseControlsLowestNote = false;
-	~targetHighest = 96;
-	~highestNote = 96;
-	~targetLowest = 24;
-	~lowestNote = 24;
-	~mouseControlsRhythm = false;
-
-	6.do({arg v;
-		x = Synth.new(\ln,[\out,v+6]);
-		v.postln;
-		~streams[v] = Pbind(
-			\instrument, \sampleSynth,
-			\freq, FuncStream({
-				var voice = v, midi;
-				~noteIndexes[voice] = ~getNextNote.value(~noteIndexes[voice]);
-				midi = (~scale[~noteIndexes[voice]] + 24 + (voice * 12));
-
-				~mouseControlsHighestNote.if({
-					~targetHighest = ~mouseY * 72 + 24;
-				},{
-					~targetHighest = 96;
-				});
-
-				~mouseControlsLowestNote.if({
-					~targetLowest = ~mouseY * 72 + 24;
-				},{
-					~targetLowest = 24;
-				});
-
-				(~highestNote > ~targetHighest).if({
-					~highestNote = ~highestNote - 1});
-				(~highestNote < ~targetHighest).if({
-					~highestNote = ~highestNote + 1});
-				(~lowestNote > ~targetLowest).if({
-					~lowestNote = ~lowestNote - 1});
-				(~lowestNote < ~targetLowest).if({
-					~lowestNote = ~lowestNote + 1});
-
-				while({midi > ~highestNote}, {
-					midi = midi - 12;
-				});
-				while({midi < ~lowestNote}, {
-					midi = midi + 12;
-				});
-				midi.midicps * 4.0;
-			};),
-			\dur, FuncStream({
-				var val = ~rhyth[~stratumRate[v]].choose;
-				~mouseControlsRhythm.if({
-					var prob = [1 - (~mouseY - 0).abs, 1 - (~mouseY - 0.5).abs, 1 - (~mouseY - 1).abs], sum = 0, rnd = 1.0.rand, n = 0;
-					prob.do({arg item, i;
-						sum = sum + item;
-					});
-					prob.do({arg item, i;
-						prob[i] = item / sum;
-					});
-					sum = 0;
-					while({sum < rnd},
-						{
-							sum = sum + prob[n];
-							n = n + 1;
-					});
-					//prob.postln;
-					val = ~rhyth[~stratumRate[v]][n-1];
-					//val.postln;
-				});
-				val;
-			}),
-			\voice, v,
-			\amp, FuncStream({
-				(~curAmp[v] > ~amp[v]).if(
-					{~curAmp[v] = ~curAmp[v] * 0.8;},
-					{~curAmp[v] = ~curAmp[v] * 1.3;});
-				~curAmp[v];
-			}),
-			\mouseDynamics, FuncStream({~mouseDynamics[v]}),
-			\addAction, 3,
-			\group, x
-		).play(quant: 1);
-		~streams[v].stop;
-	});
-	r = Synth.tail(s, \rev);
-	x = 3;
+		"EVERYTHING IS READY TO PLAY!".postln;
+	}
 });
-
-//Receives MouseY messages from the server
-y.free;
-y = OSCFunc.newMatching({ arg msg;
-	~mouseY = msg[3];
-}, '/reply');
-
 )
 
 
@@ -264,6 +282,9 @@ midi nums 24 - 96
 ~amp[x] = 0.5; // medium
 ~amp[x] = 0.9; // loud
 ~amp[x] = 0;//fade out to silence
+
+//By the way, to control a parameter for all 6 strata at once, put your command within a loop:
+6.do({arg i; ~amp[i] = 0});//fades everything to 0
 
 //use these commands to map the dynamics of a stratum x
 //to the horizontal position of your mouse. left = soft, right = loud
@@ -368,15 +389,15 @@ TempoClock.tempo = 80/60; // 80 pbm
 //default
 (
 ~transMatrix = [
-		[0.0, 0.1, 0.2, 0.1, 0.3, 0.1, 0.1, 0.1],
-		[0.3, 0.0, 0.3, 0.1, 0.1, 0.1, 0.1, 0.0],
-		[0.3, 0.1, 0.0, 0.1, 0.2, 0.1, 0.1, 0.1],
-		[0.1, 0.0, 0.5, 0.0, 0.1, 0.2, 0.0, 0.1],
-		[0.3, 0.1, 0.2, 0.1, 0.0, 0.1, 0.1, 0.2],
-		[0.2, 0.0, 0.2, 0.2, 0.1, 0.0, 0.1, 0.2],
-		[0.0, 0.2, 0.0, 0.0, 0.2, 0.1, 0.0, 0.5],
-		[0.1, 0.1, 0.2, 0.1, 0.3, 0.1, 0.1, 0.0],
-	];
+	[0.0, 0.1, 0.2, 0.1, 0.3, 0.1, 0.1, 0.1],
+	[0.3, 0.0, 0.3, 0.1, 0.1, 0.1, 0.1, 0.0],
+	[0.3, 0.1, 0.0, 0.1, 0.2, 0.1, 0.1, 0.1],
+	[0.1, 0.0, 0.5, 0.0, 0.1, 0.2, 0.0, 0.1],
+	[0.3, 0.1, 0.2, 0.1, 0.0, 0.1, 0.1, 0.2],
+	[0.2, 0.0, 0.2, 0.2, 0.1, 0.0, 0.1, 0.2],
+	[0.0, 0.2, 0.0, 0.0, 0.2, 0.1, 0.0, 0.5],
+	[0.1, 0.1, 0.2, 0.1, 0.3, 0.1, 0.1, 0.0],
+];
 )
 
 /*
