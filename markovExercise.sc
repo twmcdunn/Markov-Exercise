@@ -202,8 +202,8 @@ s.waitForBoot({
 			\voice, v,
 			\amp, FuncStream({
 				(~curAmp[v] > ~amp[v]).if(
-					{~curAmp[v] = ~curAmp[v] * 0.9;},
-					{~curAmp[v] = ~curAmp[v] * 1.1;});
+					{~curAmp[v] = ~curAmp[v] * 0.8;},
+					{~curAmp[v] = ~curAmp[v] * 1.3;});
 				~curAmp[v];
 			}),
 			\mouseDynamics, FuncStream({~mouseDynamics[v]}),
