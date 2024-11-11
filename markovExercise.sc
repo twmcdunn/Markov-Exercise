@@ -23,7 +23,7 @@ s.waitForBoot({
 		//original frequency of sample
 		~origFreq = 1760;
 		"LOADING SOUND SAMPLE".postln;
-		1.wait;//allows time for buffer to finish loading (just in case)
+		3.wait;//allows time for buffer to finish loading (just in case)
 
 		/*
 		* in each stratum: 0 - mouse does note control dynamics
@@ -70,7 +70,7 @@ s.waitForBoot({
 		}).add;
 
 		"LOADING SYNTHS".postln;
-		1.wait;//allows time for synths to finish loading (just in case)
+		3.wait;//allows time for synths to finish loading (just in case)
 
 		/*C Major scale in numbers (c = 0).
 		* Includes top note.
