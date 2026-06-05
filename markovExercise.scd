@@ -2,19 +2,13 @@
 //if you get a message about mismatch audio rate, you'll need
 //to adjust your audio settings on the computer, then reboot the
 //supercollider audio server
-s.options.sampleRate = 44100;
-
-//On windows, you will probably need to replace line 17 with
-//the line below, so the program can find the directory of the
-//sound sample it uses:
-~dir = thisProcess.nowExecutingPath.dirname +\+ "7.wav";
 
 //run this block to initialize things (the orchestra)
 (
 s.reboot;
 s.waitForBoot({
 	fork{
-		~dir = thisProcess.nowExecutingPath.dirname +/+ "7.wav";
+		~dir = PathName(Document.current.dir +/+ "bell_1760hz.wav").fullPath;
 		//starts sending mouseY values to the client machine
 		{SendReply.kr(Impulse.kr(4), '/reply', MouseY.kr(),-1)}.play;
 
@@ -115,6 +109,8 @@ s.waitForBoot({
 			arg note;
 			var rnd = 1.0.rand, tot = 0, newNote;
 			i = 0;
+			if(note > (~transMatrix.size - 1)){note = ~transMatrix.size.rand};//if the matrix changed sizes, pick a random row
+
 			while({tot <= rnd},{
 				tot = tot + ~transMatrix[note][i];
 				newNote = i;
@@ -142,7 +138,7 @@ s.waitForBoot({
 		~stratumRate = [0,0,0,0,0,0];
 
 		//an array that will hold the music streams
-		~streams = [nil,nil,nil,nil,nil,nil];
+		~strata = [nil,nil,nil,nil,nil,nil];
 
 		//Assigned values later
 		~mouseY = 0;
@@ -153,16 +149,17 @@ s.waitForBoot({
 		~targetLowest = 24;
 		~lowestNote = 24;
 		~mouseControlsRhythm = false;
+		~transpo = 0;
 
 		6.do({arg v;
 			x = Synth.new(\ln,[\out,v+6]);
 			//v.postln;
-			~streams[v] = Pbind(
+			~strata[v] = Pbind(
 				\instrument, \sampleSynth,
 				\freq, FuncStream({
 					var voice = v, midi;
 					~noteIndexes[voice] = ~getNextNote.value(~noteIndexes[voice]);
-					midi = (~scale[~noteIndexes[voice]] + 24 + (voice * 12));
+					midi = (((~scale[~noteIndexes[voice] % ~scale.size] + ~transpo) % 12) + 24 + (voice * 12));
 
 					~mouseControlsHighestNote.if({
 						~targetHighest = ~mouseY * 72 + 24;
@@ -219,14 +216,14 @@ s.waitForBoot({
 				\amp, FuncStream({
 					(~curAmp[v] > ~amp[v]).if(
 						{~curAmp[v] = ~curAmp[v] * 0.8;},
-						{~curAmp[v] = ~curAmp[v] * 1.3;});
+						{if(~curAmp[v] == 0){~curAmp[v] = 0.01}{~curAmp[v] = ~curAmp[v] * 1.3;}});
 					~curAmp[v];
 				}),
 				\mouseDynamics, FuncStream({~mouseDynamics[v]}),
 				\addAction, 3,
 				\group, x
 			).play(quant: 1);
-			~streams[v].stop;
+			~strata[v].stop;
 		});
 		r = Synth.tail(s, \rev);
 		x = 3;
@@ -241,6 +238,8 @@ s.waitForBoot({
 	}
 });
 )
+
+//Ctl/Cmd + . to stop all sound (need to execute the orchestra block again to restart)
 
 
 //The score:
@@ -257,20 +256,20 @@ midi nums 24 - 96
 */
 
 //These commmands start (i.e. resume) each stratum
-~streams[0].resume(quant:1);
-~streams[1].resume(quant:1);
-~streams[2].resume(quant:1);
-~streams[3].resume(quant:1);
-~streams[4].resume(quant:1);
-~streams[5].resume(quant:1);
+~strata[0].resume(quant:1);
+~strata[1].resume(quant:1);
+~strata[2].resume(quant:1);
+~strata[3].resume(quant:1);
+~strata[4].resume(quant:1);
+~strata[5].resume(quant:1);
 
 //These commmands stop (i.e. pause) each stratum
-~streams[0].stop;
-~streams[1].stop;
-~streams[2].stop;
-~streams[3].stop;
-~streams[4].stop;
-~streams[5].stop;
+~strata[0].stop;
+~strata[1].stop;
+~strata[2].stop;
+~strata[3].stop;
+~strata[4].stop;
+~strata[5].stop;
 
 //The commands below alter a given stratum x,
 //replace 'x' with the number stratum you'd like
@@ -285,6 +284,8 @@ midi nums 24 - 96
 
 //By the way, to control a parameter for all 6 strata at once, put your command within a loop:
 6.do({arg i; ~amp[i] = 0});//fades everything to 0
+6.do({arg i; ~strata[i].resume(quant: 1)});//starts all stata
+6.do({arg i; ~strata[i].stop});//stops all stata
 
 //use these commands to map the dynamics of a stratum x
 //to the horizontal position of your mouse. left = soft, right = loud
@@ -418,11 +419,11 @@ r.set(\room, 1, \mix, 1, \damp, 1);//drench it
 
 // Cue 7
 (
-~streams[1].resume(quant:1);
-~streams[2].resume(quant:1);
-~streams[3].resume(quant:1);
-~streams[4].resume(quant:1);
-~streams[5].resume(quant:1);
+~strata[1].resume(quant:1);
+~strata[2].resume(quant:1);
+~strata[3].resume(quant:1);
+~strata[4].resume(quant:1);
+~strata[5].resume(quant:1);
 
 ~mouseControlsHighestNote = true;
 ~transMatrix = [
@@ -449,3 +450,38 @@ r.set(\room, 0.7, \mix, 0.9, \damp, 0.5);
 ~amp[1] = 0.1;
 ~amp[0] = 0.0;
 )
+
+
+// To play a midi mockup or other sound file alongside your markov patch,
+// put the sound file in the same folder as this patch and run this.
+// set the fileName variable to the name of your file and set stereo
+// to false (all lower case, no quotes) if your file is mono (right
+// click the file and check its properties / info).
+// To start the sound part way through set startTime to the number of
+// seconds in that you want to start.
+(
+{
+	var fileName = "YOUR FILE NAME IN QUOTES.wav",//any standard sound format, include extension, but not path
+	stereo = true,//set to false for mono files
+	startTime = 0,//number of seconds in to start
+
+	dir = PathName(Document.current.dir +/+ fileName).fullPath,
+	buff = Buffer.read(s, dir, action: {
+		~mockupSound = {
+			var sig, chan = 1;
+			if(stereo){chan = 2};
+			sig = PlayBuf.ar(chan, buff, BufRateScale.kr(buff), startPos: startTime * buff.sampleRate);
+			if(stereo.not){sig = sig.dup};
+			sig;
+		}.play;
+	});
+}.value;
+)
+
+//To stop the sound after running the above:
+~mockupSound.free;
+
+//record your markov exercise (overwite file if it already exists)
+s.record(path:PathName(Document.current.dir +/+ "myExercise.wav"));
+// Ctl/Cmd + . to stop all sound and end recording (need to execute
+// the orchestra block again to restart)
