@@ -819,5 +819,5 @@ s.record(path:PathName(Document.current.dir +/+ "myExercise.wav"));
 
 //cue 15
 (
-6.do({arg i; ~amp[i] = 0.5});
+6.do({arg i; ~amp[i] = 0});
 )
