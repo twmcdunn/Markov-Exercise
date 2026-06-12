@@ -629,7 +629,7 @@ r.set(\room, 0.7, \mix, 0.9, \damp, 0.5);
 ~mockupSound.free;
 
 //record your markov exercise (overwite file if it already exists)
-s.record(path:PathName(Document.current.dir +/+ "myExercise.wav"));
+s.record(path:PathName(Document.current.dir +/+ "myExercise.wav").fullPath);
 // Ctl/Cmd + . to stop all sound and end recording (need to execute
 // the orchestra block again to restart)
 
